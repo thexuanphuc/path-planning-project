@@ -1,1 +1,86 @@
 __MACOSX/**
+
+# ----------------------------------------------------------------------
+# 1. Bytecode and Compiled Files
+# ----------------------------------------------------------------------
+*.pyc
+__pycache__/
+*.pyd
+*.so              # Shared library files
+*.egg
+*.egg-info/
+.eggs/
+
+# ----------------------------------------------------------------------
+# 2. Build and Distribution Files
+# ----------------------------------------------------------------------
+/build/
+/dist/
+*.whl
+*.zip             # Distribution archives
+sdist/
+MANIFEST
+
+# ----------------------------------------------------------------------
+# 3. Virtual Environments
+# ----------------------------------------------------------------------
+# Python Virtual Environments (Common names)
+.env/
+venv/
+env/
+/bin/python       # Ensure this doesn't accidentally check in a bin directory if not intended
+
+# Anaconda/Miniconda environments
+# Note: If your environment is named 'conda_env' it will be ignored
+conda_env/
+
+# Pipenv files
+# Pipenv stores virtual envs in a central cache, so often nothing to ignore here
+# but you might ignore Pipfile.lock if you want to use poetry/other lock files
+# Pipfile.lock
+
+# Poetry/Hatch environments (often inside the project root)
+.venv/
+
+# ----------------------------------------------------------------------
+# 4. Dependency Management (pip-reqs)
+# ----------------------------------------------------------------------
+# Ignore downloaded packages (if manually fetching)
+wheels/
+/pip-selfcheck.json
+
+# ----------------------------------------------------------------------
+# 5. Testing and Documentation
+# ----------------------------------------------------------------------
+/htmlcov/         # coverage.py HTML reports
+.coverage         # coverage.py data files
+.pytest_cache/    # pytest cache directory
+/doc/_build/      # Sphinx documentation output
+
+# ----------------------------------------------------------------------
+# 6. Operating System and Editor/IDE Files
+# ----------------------------------------------------------------------
+# OS generated files
+.DS_Store         # macOS
+Thumbs.db         # Windows
+
+# Popular IDEs
+# VS Code
+.vscode/          # Configuration files (excluding settings.json, which is often shared)
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+# Vim
+*.swp
+*.bak
+*~
+
+# ----------------------------------------------------------------------
+# 7. Jupyter/IPython Notebooks
+# ----------------------------------------------------------------------
+.ipynb_checkpoints/
