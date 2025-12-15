@@ -1,0 +1,49 @@
+MOTION PLANNING ALGORITHMS COMPARISON
+============================================================
+
+Environment Configuration:
+  Bounds: [[-5, 5], [-5, 5], [-5, 5]]
+  Start: [-4, -4, -4]
+  Goal: [4, 4, 4]
+  Obstacles: 3 spheres
+
++---------------+---------+-------------+----------+------------+-------------+
+| Algorithm     | Success | Path Length | Time (s) | Iterations | Total Nodes |
++---------------+---------+-------------+----------+------------+-------------+
+| BIT*          | ✓       | 13.9932     | 15.5653  | 127        | 127         |
+| RRT*          | ✓       | 18.1441     | 0.6889   | 209        | 209         |
+| Informed RRT* | ✓       | 16.6545     | 0.6939   | 198        | 198         |
+| Custom RRT*   | ✓       | 15.2277     | 0.6563   | 201        | 201         |
++---------------+---------+-------------+----------+------------+-------------+
+
+DETAILED METRICS:
+============================================================
+
+BIT*:
+  Success: True
+  Path Length: 13.993184881438783
+  Completion Time (s): 15.565335988998413
+  Iterations/Trees: 127
+  Number of Nodes: 127
+
+RRT*:
+  Success: True
+  Path Length: 18.144077705864497
+  Completion Time (s): 0.6889069080352783
+  Iterations/Trees: 209
+  Number of Nodes: 209
+
+Informed RRT*:
+  Success: True
+  Path Length: 16.654484020766866
+  Completion Time (s): 0.6939141750335693
+  Iterations/Trees: 198
+  Number of Nodes: 198
+
+Custom RRT*:
+  Success: True
+  Path Length: 15.227678188837919
+  Completion Time (s): 0.6562941074371338
+  Iterations/Trees: 201
+  Number of Nodes: 201
+
