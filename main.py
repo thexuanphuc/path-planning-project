@@ -270,7 +270,29 @@ def _sanitize_for_json(obj):
 
 
 def main():
+    stop_modes = [
+        # Mode A — Fixed iterations (∞ time)
+        # dict(stop_mode="iters", max_iters=3000),
 
+        # # Mode B — Time limit + iteration cap
+        # dict(stop_mode="time_or_iters", max_iters=3000, time_limit=15.0),
+
+        # Mode C — Cost convergence only
+        dict(stop_mode="converged", eps_abs=1e-3, eps_rel=1e-3, patience=10, check_every=25),
+    ]
+
+    if len(stop_modes) != 1:
+        raise ValueError("only one mode for now, its easier for filenames")
+    
+
+    seed = 0
+
+    # choose a stop_mode name for single-run filenames (use first configured mode)
+    stop_mode_name = stop_modes[0]["stop_mode"]
+
+    if stop_mode_name == "converged":
+        Warning ("the BTT* will be very slow")
+    
     # Environment (kept intact)
     bounds = np.array([[-5, 5], [-5, 5], [-5, 5]])
     start = [-4, -4, -4]
@@ -283,11 +305,13 @@ def main():
     ]
 
     # optional: generate GIF and copy images into media/
-    plot_gif = True
+    plot_gif = False
     if plot_gif:
         try:
-            make_growth_gif(results_path='media/planner_metrics.json', bounds=bounds, start=start, goal=goal, obstacles=obstacles,
-                            out_file='media/gif/planner_trees_growth.gif', max_frames=200, fps=12)
+            make_growth_gif(results_path=f"media/{stop_mode_name}_planner_metrics.json",
+                            bounds=bounds, start=start, goal=goal, obstacles=obstacles,
+                            out_file=f"media/gif/{stop_mode_name}_planner_trees_growth.gif",
+                            max_frames=200, fps=12)
         except Exception as e:
             print('Failed to generate GIF:', e)
 
@@ -301,18 +325,6 @@ def main():
         (CustomRRTStar, "Custom RRT*", dict(step_size=0.8, max_iter=3000, search_radius=3.0, clearance_weight=1.0)),
     ]
 
-    stop_modes = [
-        # # Mode A — Fixed iterations (∞ time)
-        # dict(stop_mode="iters", max_iters=3000),
-
-        # Mode B — Time limit + iteration cap
-        dict(stop_mode="time_or_iters", max_iters=3000, time_limit=15.0),
-
-        # # Mode C — Cost convergence only
-        # dict(stop_mode="converged", eps_abs=1e-3, eps_rel=1e-3, patience=10, check_every=25),
-    ]
-
-    seed = 0
 
 
     all_results = []
@@ -334,9 +346,9 @@ def main():
             all_results.append(res)
 
     # # Save metrics (sanitize numpy types)
-    with open("media/planner_metrics.json", "w") as f:
+    with open(f"media/{stop_mode_name}_planner_metrics.json", "w") as f:
         json.dump(_sanitize_for_json(all_results), f, indent=2)
-    print("\nSaved metrics to media/planner_metrics.json")
+    print(f"\nSaved metrics to media/{stop_mode_name}_planner_metrics.json")
 
     # Optional: convergence plots (best_cost_history)
     plt.figure()
@@ -352,11 +364,12 @@ def main():
     plt.ylabel("best cost")
     plt.title("Convergence (best cost vs time)")
     plt.legend()
-    convergence_best_cost = "media/img/convergence_best_cost.png"
+    print(stop_mode_name)
+    convergence_best_cost = f"media/img/{stop_mode_name}_convergence_best_cost.png"
     plt.savefig(convergence_best_cost)
     print("Saved convergence plot to convergence_best_cost.png")
     # Plot metric comparisons (model parameters)
-    metrics_file = "media/img/metrics_comparison.png"
+    metrics_file = f"media/img/{stop_mode_name}_metrics_comparison.png"
     plot_metrics_comparison(all_results, out_file=metrics_file)
     print(f"Saved metrics comparison to {metrics_file}")
 
@@ -414,7 +427,7 @@ def main():
     ax.set_zlabel('Z')
     ax.set_title("Comparison of Sampling-Based Planners (trees + best path)")
     plt.legend()
-    out_planner_img = "media/img/planner_trees_and_paths.png"
+    out_planner_img = f"media/img/{stop_mode_name}_planner_trees_and_paths.png"
     plt.savefig(out_planner_img)
     print(f"Saved tree+path visualization to {out_planner_img}")
 

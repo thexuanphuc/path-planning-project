@@ -8,7 +8,7 @@ from common.utils import Sphere, Box
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 
-def _load_results(path="media/planner_metrics.json"):
+def _load_results(path="media/time_or_iters_planner_metrics.json"):
     with open(path, "r") as f:
         data = json.load(f)
     return data
@@ -84,8 +84,8 @@ def _prepare_planner_data(res):
     }
 
 
-def make_growth_gif(results_path="media/planner_metrics.json", bounds=None, start=None, goal=None, obstacles=None,
-                    out_file="media/gif/planner_trees_growth.gif", max_frames=200, fps=20):
+def make_growth_gif(results_path="media/time_or_iters_planner_metrics.json", bounds=None, start=None, goal=None, obstacles=None,
+                    out_file="media/gif/time_or_iters_planner_trees_growth.gif", max_frames=200, fps=20):
     """Create a GIF showing node-addition growth for each planner on a 2x2 subplot grid.
 
     - results_path: path to JSON produced by `main.py`
@@ -301,9 +301,9 @@ if __name__ == '__main__':
     # Try to load env info from main.py run (best-effort)
     res = None
     try:
-        results = _load_results('media/planner_metrics.json')
+        results = _load_results('media/time_or_iters_planner_metrics.json')
     except Exception:
-        print('media/planner_metrics.json not found in cwd; please run main.py first')
+        print('media/time_or_iters_planner_metrics.json not found in cwd; please run main.py first')
         results = []
 
     # reconstruct basic env used in the repo's main (fallback)
