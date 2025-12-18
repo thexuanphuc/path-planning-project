@@ -270,6 +270,7 @@ def _sanitize_for_json(obj):
 
 
 def main():
+
     # Environment (kept intact)
     bounds = np.array([[-5, 5], [-5, 5], [-5, 5]])
     start = [-4, -4, -4]
@@ -280,6 +281,17 @@ def main():
         Sphere(center=[-2, -2, 2], radius=0.6),
         Sphere(center=[2, 2, -2], radius=0.6)
     ]
+
+    # optional: generate GIF and copy images into media/
+    plot_gif = True
+    if plot_gif:
+        try:
+            make_growth_gif(results_path='media/planner_metrics.json', bounds=bounds, start=start, goal=goal, obstacles=obstacles,
+                            out_file='media/gif/planner_trees_growth.gif', max_frames=200, fps=12)
+        except Exception as e:
+            print('Failed to generate GIF:', e)
+
+        return
 
     planners = [
         (RRT, "RRT", dict(step_size=0.8, max_iter=3000, goal_sample_rate=0.2, goal_tolerance=2.0)),
@@ -302,8 +314,6 @@ def main():
 
     seed = 0
 
-    # toggle: if True, generate GIF + copy metric images into media/
-    plot_gif = True
 
     all_results = []
     for Planner, name, base_kwargs in planners:
@@ -323,10 +333,10 @@ def main():
                   f"time={res['planning_time']:.3f}s, t_first={res['time_to_first_solution']}")
             all_results.append(res)
 
-    # Save metrics (sanitize numpy types)
-    with open("planner_metrics.json", "w") as f:
+    # # Save metrics (sanitize numpy types)
+    with open("media/planner_metrics.json", "w") as f:
         json.dump(_sanitize_for_json(all_results), f, indent=2)
-    print("\nSaved metrics to planner_metrics.json")
+    print("\nSaved metrics to media/planner_metrics.json")
 
     # Optional: convergence plots (best_cost_history)
     plt.figure()
@@ -342,7 +352,8 @@ def main():
     plt.ylabel("best cost")
     plt.title("Convergence (best cost vs time)")
     plt.legend()
-    plt.savefig("convergence_best_cost.png")
+    convergence_best_cost = "media/img/convergence_best_cost.png"
+    plt.savefig(convergence_best_cost)
     print("Saved convergence plot to convergence_best_cost.png")
     # Plot metric comparisons (model parameters)
     metrics_file = "media/img/metrics_comparison.png"
@@ -407,14 +418,6 @@ def main():
     plt.savefig(out_planner_img)
     print(f"Saved tree+path visualization to {out_planner_img}")
 
-    # optional: generate GIF and copy images into media/
-    if plot_gif:
-        try:
-            make_growth_gif(results_path='planner_metrics.json', bounds=bounds, start=start, goal=goal, obstacles=obstacles,
-                            out_file='media/gif/planner_trees_growth.gif', max_frames=200, fps=12)
-        except Exception as e:
-            print('Failed to generate GIF:', e)
-        # images are saved directly into `media/img/` by this script; no copying needed
 
 
 if __name__ == "__main__":

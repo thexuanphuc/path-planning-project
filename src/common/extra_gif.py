@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from matplotlib import animation
 from common.utils import Sphere, Box
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 
-def _load_results(path="planner_metrics.json"):
+def _load_results(path="media/planner_metrics.json"):
     with open(path, "r") as f:
         data = json.load(f)
     return data
@@ -15,37 +16,82 @@ def _load_results(path="planner_metrics.json"):
 
 def _prepare_planner_data(res):
     # nodes is list of [x,y,z]
-    nodes = np.asarray(res.get("nodes", []), dtype=float)
-    edges = res.get("edges", [])
+    raw_nodes = res.get("nodes", []) or []
+    raw_edges = res.get("edges", []) or []
+    raw_path = res.get("path", []) or []
+
+    # robustly parse nodes: accept only entries that can be converted to 3 floats
+    parsed_nodes = []
+    for item in raw_nodes:
+        try:
+            # allow sequences longer than 3 (take first 3) or exactly 3
+            coords = list(item)
+            if len(coords) >= 3:
+                x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
+                if np.isfinite(x) and np.isfinite(y) and np.isfinite(z):
+                    parsed_nodes.append([x, y, z])
+        except Exception:
+            continue
+    if parsed_nodes:
+        nodes = np.asarray(parsed_nodes, dtype=float)
+    else:
+        nodes = np.zeros((0, 3), dtype=float)
+
     # map node coordinate tuple to index (first occurrence)
-    coord_to_idx = {}
-    for i, p in enumerate(nodes.tolist()):
-        coord_to_idx[tuple(map(float, p))] = i
+    coord_to_idx = {tuple(p): i for i, p in enumerate(nodes.tolist())}
 
+    # parse edges: keep only edges whose endpoints exist in nodes
     edges_idx = []
-    for (p, q) in edges:
-        tp = tuple(map(float, p))
-        tq = tuple(map(float, q))
-        if tp in coord_to_idx and tq in coord_to_idx:
-            edges_idx.append((coord_to_idx[tp], coord_to_idx[tq]))
+    segments = []
+    for e in raw_edges:
+        try:
+            p, q = e
+            pp = (float(p[0]), float(p[1]), float(p[2]))
+            qq = (float(q[0]), float(q[1]), float(q[2]))
+        except Exception:
+            continue
+        if pp in coord_to_idx and qq in coord_to_idx:
+            a = coord_to_idx[pp]
+            b = coord_to_idx[qq]
+            edges_idx.append((a, b))
+            pa = nodes[a]
+            pb = nodes[b]
+            if np.isfinite(pa).all() and np.isfinite(pb).all():
+                segments.append(np.vstack([pa, pb]))
 
-    path = np.asarray(res.get("path", []), dtype=float)
+    # parse path: accept sequence of 3-float points
+    parsed_path = []
+    for item in raw_path:
+        try:
+            coords = list(item)
+            if len(coords) >= 3:
+                x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
+                if np.isfinite(x) and np.isfinite(y) and np.isfinite(z):
+                    parsed_path.append([x, y, z])
+        except Exception:
+            continue
+    if parsed_path:
+        path = np.asarray(parsed_path, dtype=float)
+    else:
+        path = np.zeros((0, 3), dtype=float)
     return {
         "name": res.get("planner", "planner"),
         "nodes": nodes,
         "edges_idx": edges_idx,
+        "segments": segments,
         "path": path,
         "stop_mode": res.get("stop_mode", ""),
     }
 
 
-def make_growth_gif(results_path="planner_metrics.json", bounds=None, start=None, goal=None, obstacles=None,
-                    out_file="media/gif/planner_trees_growth.gif", max_frames=200, fps=12):
+def make_growth_gif(results_path="media/planner_metrics.json", bounds=None, start=None, goal=None, obstacles=None,
+                    out_file="media/gif/planner_trees_growth.gif", max_frames=200, fps=20):
     """Create a GIF showing node-addition growth for each planner on a 2x2 subplot grid.
 
     - results_path: path to JSON produced by `main.py`
     - bounds/start/goal/obstacles: optional environment info for plotting
     """
+    print("start make_growth_gif()")
     results = _load_results(results_path)
 
     # keep only the first 4 unique planners (in order encountered)
@@ -65,6 +111,10 @@ def make_growth_gif(results_path="planner_metrics.json", bounds=None, start=None
             break
 
     prepared = [_prepare_planner_data(r) for r in planners_res]
+
+    if not prepared:
+        print("No planner results found to animate (prepared is empty).")
+        return
 
     # determine frame count by max nodes across planners
     max_nodes = max((p["nodes"].shape[0] for p in prepared), default=1)
@@ -110,56 +160,116 @@ def make_growth_gif(results_path="planner_metrics.json", bounds=None, start=None
 
     for ax in axes:
         _draw_static(ax)
+    # Prepare and cache artists for each subplot to avoid heavy create/remove
+    for i, p in enumerate(prepared):
+        ax = axes[i]
+        # initial empty scatter
+        pts = p["nodes"]
+        if pts.size:
+            sc = ax.scatter([], [], [], s=8, alpha=0.12, color='blue')
+        else:
+            sc = ax.scatter([], [], [], s=8, alpha=0.12, color='blue')
 
-    # animation update
+        # Line3DCollection for edges (start empty)
+        segs = p.get("segments", [])
+        if segs:
+            coll = Line3DCollection([], colors='blue', linewidths=0.5, alpha=0.04)
+            ax.add_collection3d(coll)
+        else:
+            coll = Line3DCollection([], colors='blue', linewidths=0.5, alpha=0.04)
+            ax.add_collection3d(coll)
+
+        # path line (hidden until final frame)
+        path_line = None
+        if p["path"].size:
+            line, = ax.plot([], [], [], color='red', linewidth=2.0)
+            path_line = line
+
+        # small text label for stop_mode
+        txt = ax.text2D(0.05, 0.92, f"stop_mode: {p.get('stop_mode','')}", transform=ax.transAxes, fontsize=8)
+
+        # store artist handles
+        p['artists'] = {
+            'scatter': sc,
+            'edges_coll': coll,
+            'path_line': path_line,
+            'text': txt,
+        }
+
+    # animation update using cached artists
     def update(frame_i):
-        k = idxs[frame_i]
+        k = int(idxs[frame_i])
+        artists = []
         for i, p in enumerate(prepared):
             ax = axes[i]
-            # remove previous plotted artists (collections, lines, texts)
-            # (assignment like `ax.lines = []` is not allowed on some Matplotlib versions)
-            for coll in list(ax.collections):
+            pts = p['nodes']
+            a = p['artists']
+
+            # update scatter
+            if pts.size and k > 0:
+                upto = min(k, pts.shape[0])
+                pts_shown = pts[:upto]
                 try:
-                    coll.remove()
+                    a['scatter']._offsets3d = (pts_shown[:, 0], pts_shown[:, 1], pts_shown[:, 2])
+                except Exception:
+                    # fallback: remove and recreate small scatter
+                    try:
+                        a['scatter'].remove()
+                    except Exception:
+                        pass
+                    a['scatter'] = ax.scatter(pts_shown[:, 0], pts_shown[:, 1], pts_shown[:, 2], s=8, alpha=0.12, color='blue')
+            else:
+                # empty scatter
+                try:
+                    a['scatter']._offsets3d = ([], [], [])
                 except Exception:
                     pass
-            for line in list(ax.lines):
+
+            # update edges collection: include only edges where both endpoints < upto
+            segs = p.get('segments', [])
+            if segs and pts.size and k > 0:
+                upto = min(k, pts.shape[0])
+                # build segments_upto by filtering edges_idx
+                edges_idx = p.get('edges_idx', [])
+                segs_upto = [segs[j] for j, (ai, bi) in enumerate(edges_idx) if ai < upto and bi < upto]
                 try:
-                    line.remove()
+                    a['edges_coll'].set_segments(segs_upto)
+                except Exception:
+                    # fallback: recreate collection
+                    try:
+                        a['edges_coll'].remove()
+                    except Exception:
+                        pass
+                    a['edges_coll'] = Line3DCollection(segs_upto, colors='blue', linewidths=0.5, alpha=0.04)
+                    ax.add_collection3d(a['edges_coll'])
+            else:
+                try:
+                    a['edges_coll'].set_segments([])
                 except Exception:
                     pass
-            for txt in list(ax.texts):
-                try:
-                    txt.remove()
-                except Exception:
-                    pass
 
-            # redraw static
-            _draw_static(ax)
+            # overlay final path on last frame
+            if frame_i == len(idxs) - 1 and p['path'].size:
+                path = p['path']
+                if a.get('path_line') is None:
+                    # create if missing
+                    line, = ax.plot(path[:, 0], path[:, 1], path[:, 2], color='red', linewidth=2.0)
+                    a['path_line'] = line
+                else:
+                    try:
+                        a['path_line'].set_data_3d(path[:, 0], path[:, 1], path[:, 2])
+                    except Exception:
+                        try:
+                            a['path_line'].remove()
+                        except Exception:
+                            pass
+                        a['path_line'], = ax.plot(path[:, 0], path[:, 1], path[:, 2], color='red', linewidth=2.0)
 
-            nodes = p["nodes"]
-            if nodes.size:
-                upto = min(k, nodes.shape[0])
-                pts = nodes[:upto]
-                ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2], s=8, alpha=0.12, color='blue')
-
-                # draw edges where both endpoints index < upto
-                for (a_idx, b_idx) in p["edges_idx"]:
-                    if a_idx < upto and b_idx < upto:
-                        pa = nodes[a_idx]
-                        pb = nodes[b_idx]
-                        ax.plot([pa[0], pb[0]], [pa[1], pb[1]], [pa[2], pb[2]], color='blue', alpha=0.04, linewidth=0.5)
-
-            # if last frame or all nodes shown, overlay final path
-            if frame_i == len(idxs) - 1 and p["path"].size:
-                path = p["path"]
-                ax.plot(path[:, 0], path[:, 1], path[:, 2], color='red', linewidth=2.0)
-
-            # annotate with stop_mode small label
-            ax.text2D(0.05, 0.92, f"stop_mode: {p.get('stop_mode','')}", transform=ax.transAxes, fontsize=8)
+            artists.extend([a['scatter'], a['edges_coll'], a.get('path_line'), a['text']])
 
         fig.suptitle('Planner tree growth (nodes added over time)')
-        return []
+        # return list of artists (None entries filtered)
+        return [art for art in artists if art is not None]
 
     ani = animation.FuncAnimation(fig, update, frames=len(idxs), interval=1000 // fps)
 
@@ -191,9 +301,9 @@ if __name__ == '__main__':
     # Try to load env info from main.py run (best-effort)
     res = None
     try:
-        results = _load_results('planner_metrics.json')
+        results = _load_results('media/planner_metrics.json')
     except Exception:
-        print('planner_metrics.json not found in cwd; please run main.py first')
+        print('media/planner_metrics.json not found in cwd; please run main.py first')
         results = []
 
     # reconstruct basic env used in the repo's main (fallback)
