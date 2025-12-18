@@ -81,7 +81,8 @@ def plot_metrics_comparison(all_results, out_file="metrics_comparison.png"):
     """
     import matplotlib.pyplot as plt
 
-    labels = [f"{r['planner']} ({r['stop_mode']})" for r in all_results]
+    labels = [r['planner'] for r in all_results]
+    stop_modes = [r.get('stop_mode', '') for r in all_results]
     path_len = [r.get('path_length', float('nan')) for r in all_results]
     time_req = [r.get('planning_time', float('nan')) for r in all_results]
     iters = [r.get('iterations', float('nan')) for r in all_results]
@@ -90,23 +91,46 @@ def plot_metrics_comparison(all_results, out_file="metrics_comparison.png"):
     fig, axs = plt.subplots(2, 2, figsize=(12, 8))
     axs = axs.ravel()
 
-    axs[0].bar(labels, path_len)
+    bars0 = axs[0].bar(labels, path_len)
     axs[0].set_title('Path length')
     axs[0].tick_params(axis='x', rotation=45)
+    _annotate_stop_modes(axs[0], bars0, stop_modes)
 
-    axs[1].bar(labels, time_req)
+    bars1 = axs[1].bar(labels, time_req)
     axs[1].set_title('Planning time (s)')
     axs[1].tick_params(axis='x', rotation=45)
+    _annotate_stop_modes(axs[1], bars1, stop_modes)
 
-    axs[2].bar(labels, iters)
+    bars2 = axs[2].bar(labels, iters)
     axs[2].set_title('Iterations')
     axs[2].tick_params(axis='x', rotation=45)
+    _annotate_stop_modes(axs[2], bars2, stop_modes)
 
-    axs[3].bar(labels, nodes)
+    bars3 = axs[3].bar(labels, nodes)
     axs[3].set_title('Nodes in tree')
     axs[3].tick_params(axis='x', rotation=45)
+    _annotate_stop_modes(axs[3], bars3, stop_modes)
 
     plt.tight_layout()
     plt.savefig(out_file)
     plt.close(fig)
     return out_file
+
+
+def _annotate_stop_modes(ax, bar_container, stop_modes):
+    """Annotate each bar with a small stop_mode label above it."""
+    # compute a small vertical offset relative to axis data range
+    try:
+        heights = [b.get_height() for b in bar_container]
+        maxh = max(heights) if heights else 1.0
+        offset = maxh * 0.02
+    except Exception:
+        offset = 0.01
+
+    for i, b in enumerate(bar_container):
+        h = b.get_height()
+        x = b.get_x() + b.get_width() / 2.0
+        txt = stop_modes[i] if i < len(stop_modes) else ""
+        # small, semi-transparent label
+        ax.text(x, (h if np.isfinite(h) else 0.0) + offset, txt,
+                ha='center', va='bottom', fontsize=8, alpha=0.85)
