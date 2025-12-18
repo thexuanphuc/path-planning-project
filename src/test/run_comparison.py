@@ -4,10 +4,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import time
 
 from common.utils import Sphere, Box
-from planners.bit_star import BITStar
-from planners.rrt_star import RRTStar
-from planners.informed_rrt_star import InformedRRTStar
-from planners.custom_rrt_star import CustomRRTStar
+from planner.bit_star import BITStar
+from planner.rrt_star import RRTStar
+from planner.informed_rrt_star import InformedRRTStar
+from planner.custom_rrt_star import CustomRRTStar
 
 def run_planner(planner_class, name, start, goal, obstacles, bounds, **kwargs):
     print(f"--- Running {name} ---")

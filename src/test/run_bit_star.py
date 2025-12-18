@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from common.utils import Sphere, Box
-from planners.bit_star import BITStar
+from planner.bit_star import BITStar
 
 def main():
     # Environment Setup

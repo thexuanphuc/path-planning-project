@@ -2,10 +2,10 @@ import numpy as np
 import time
 
 from common.utils import Sphere, Box
-from planners.bit_star import BITStar
-from planners.rrt_star import RRTStar
-from planners.informed_rrt_star import InformedRRTStar
-from planners.custom_rrt_star import CustomRRTStar
+from planner.bit_star import BITStar
+from planner.rrt_star import RRTStar
+from planner.informed_rrt_star import InformedRRTStar
+from planner.custom_rrt_star import CustomRRTStar
 
 
 def format_table(data, headers):

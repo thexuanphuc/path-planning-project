@@ -5,7 +5,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 import time
 
 from common.utils import Sphere, is_collision_free, sample_uniform, get_dist
-from planners.rrt_star import Node
+from planner.rrt_star import Node
 
 class AnimatedRRTStar:
     """RRT* variant that records tree growth for animation"""

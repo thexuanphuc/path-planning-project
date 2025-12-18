@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from planners.rrt_star import RRTStar
+from planner.rrt_star import RRTStar
 
 def main():
     # NO OBSTACLES - just test basic functionality

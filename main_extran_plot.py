@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 from common.utils import Sphere, Box
-from common.extra_plot import _extract_nodes_and_edges, plot_metrics_comparison
 from planner.bit_star import BITStar
 from planner.rrt_star import RRTStar
 from planner.informed_rrt_star import InformedRRTStar
@@ -62,58 +61,6 @@ def run_planner(PlannerClassOrFactory, planner_name, start, goal, obstacles, bou
         )
     else:
         raise ValueError("PlannerClassOrFactory must be a class or factory callable.")
-
-    # --- algorithmic parameter introspection ---
-    planner_params = {"class": planner.__class__.__name__}
-    # sampling
-    if hasattr(planner, "goal_sample_rate"):
-        planner_params["goal_sample_rate"] = float(getattr(planner, "goal_sample_rate"))
-    if hasattr(planner, "p_goal_sample"):
-        planner_params["p_goal_sample"] = float(getattr(planner, "p_goal_sample"))
-    if hasattr(planner, "p_dir_bias"):
-        planner_params["p_dir_bias"] = float(getattr(planner, "p_dir_bias"))
-    if hasattr(planner, "batch_size"):
-        planner_params["batch_size"] = int(getattr(planner, "batch_size"))
-    if hasattr(planner, "eta"):
-        planner_params["eta"] = float(getattr(planner, "eta"))
-
-    # connectivity
-    if hasattr(planner, "search_radius"):
-        planner_params["search_radius"] = float(getattr(planner, "search_radius"))
-    if hasattr(planner, "goal_connect_radius"):
-        planner_params["goal_connect_radius"] = float(getattr(planner, "goal_connect_radius"))
-
-    # custom features
-    if hasattr(planner, "clearance_weight"):
-        planner_params["clearance_weight"] = float(getattr(planner, "clearance_weight"))
-
-    # parent selection / rewiring indications
-    clsname = planner.__class__.__name__
-    if clsname == "CustomRRTStar":
-        planner_params["sampling"] = "dir_bias + uniform + goal"
-        planner_params["parent_selection"] = "clearance_aware"
-        planner_params["rewiring"] = "clearance_aware"
-    elif clsname == "RRT":
-        planner_params["sampling"] = "uniform + goal_bias"
-        planner_params["parent_selection"] = "nearest"
-        planner_params["rewiring"] = "none"
-    elif clsname == "RRTStar":
-        planner_params["sampling"] = "uniform + goal_bias"
-        planner_params["parent_selection"] = "cost_based"
-        planner_params["rewiring"] = "standard"
-    elif clsname == "InformedRRTStar":
-        planner_params["sampling"] = "informed"
-        planner_params["parent_selection"] = "cost_based"
-        planner_params["rewiring"] = "standard"
-    elif clsname == "BITStar":
-        planner_params["sampling"] = "batch_informed"
-        planner_params["parent_selection"] = "graph_search"
-        planner_params["rewiring"] = "implicit/prune"
-    else:
-        # best-effort
-        planner_params.setdefault("sampling", "unknown")
-        planner_params.setdefault("parent_selection", "unknown")
-        planner_params.setdefault("rewiring", "unknown")
 
     t0 = time.perf_counter()
     iterations = 0
@@ -214,15 +161,6 @@ def run_planner(PlannerClassOrFactory, planner_name, start, goal, obstacles, bou
     elif hasattr(planner, "nodes_in_tree"):
         nodes_in_tree = int(planner.nodes_in_tree)
 
-    # capture a lightweight snapshot of nodes and edges for later visualization
-    try:
-        nodes_arr, edges = _extract_nodes_and_edges(planner)
-        nodes_list = nodes_arr.tolist() if nodes_arr.size else []
-        edges_list = [[list(p), list(q)] for (p, q) in edges]
-    except Exception:
-        nodes_list = []
-        edges_list = []
-
     result = {
         "planner": planner_name,
         "stop_mode": stop_mode,
@@ -240,9 +178,6 @@ def run_planner(PlannerClassOrFactory, planner_name, start, goal, obstacles, bou
         "time_to_first_solution": None if time_to_first_solution is None else float(time_to_first_solution),
 
         "best_cost_history": [(float(t), int(it), float(c)) for (t, it, c) in best_cost_history],
-        "algo_params": planner_params,
-        "nodes": nodes_list,
-        "edges": edges_list,
     }
     return result
 
@@ -319,12 +254,9 @@ def main():
     plt.legend()
     plt.savefig("convergence_best_cost.png")
     print("Saved convergence plot to convergence_best_cost.png")
-    # Plot metric comparisons (model parameters)
-    plot_metrics_comparison(all_results, out_file="metrics_comparison.png")
-    print("Saved metrics comparison to metrics_comparison.png")
 
-    # Visualization: draw transparent trees (nodes + edges) and overlay best path
-    fig = plt.figure(figsize=(12, 10))
+    # Visualization (kept very close to your original)
+    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     ax.set_xlim(bounds[0])
     ax.set_ylim(bounds[1])
@@ -353,32 +285,20 @@ def main():
 
     colors = {"BIT*": "blue", "RRT*": "red", "Informed RRT*": "green", "Custom RRT*": "orange"}
     for name, res in best_per_planner.items():
-        # plot tree nodes (transparent)
-        nodes = np.array(res.get("nodes", []))
-        edges = res.get("edges", [])
-        if nodes.size:
-            ax.scatter(nodes[:, 0], nodes[:, 1], nodes[:, 2],
-                       color=colors.get(name, "gray"), s=6, alpha=0.08)
-        # edges
-        for e in edges:
-            p = np.asarray(e[0])
-            q = np.asarray(e[1])
-            ax.plot([p[0], q[0]], [p[1], q[1]], [p[2], q[2]], color=colors.get(name, "gray"), alpha=0.03, linewidth=0.5)
-
-        # overlay best path
         if res["success"] and res["path"] is not None:
             path = np.array(res["path"])
             ax.plot(path[:, 0], path[:, 1], path[:, 2],
-                    color=colors.get(name, "black"), linewidth=2,
+                    color=colors.get(name, "black"),
+                    linewidth=2,
                     label=f"{name} ({res['stop_mode']}, C:{res['total_cost']:.1f}, T:{res['planning_time']:.1f}s)")
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title("Comparison of Sampling-Based Planners (trees + best path)")
+    ax.set_title("Comparison of Sampling-Based Planners (best run per planner)")
     plt.legend()
-    plt.savefig("planner_trees_and_paths.png")
-    print("Saved tree+path visualization to planner_trees_and_paths.png")
+    plt.savefig("planner_comparison.png")
+    print("Saved comparison plot to planner_comparison.png")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from common.utils import sample_uniform, get_dist, is_collision_free
 
 class CustomRRTStar(RRTStar):
     """
-    Custom RRT* that reuses planners.rrt_star.RRTStar and overrides only:
+    Custom RRT* that reuses planner.rrt_star.RRTStar and overrides only:
       - sampling: goal + direction bias + uniform
       - parent selection: clearance-aware cost
       - rewiring: clearance-aware cost
