@@ -24,8 +24,14 @@ class Box(Obstacle):
 def get_dist(p1, p2):
     return np.linalg.norm(np.array(p1) - np.array(p2))
 
-def sample_uniform(bounds):
-    return np.random.uniform(bounds[:, 0], bounds[:, 1])
+def sample_uniform(bounds, rng=None):
+    """
+    Uniform sample in bounds.
+    If rng is provided, it must be a np.random.Generator.
+    """
+    if rng is None:
+        return np.random.uniform(bounds[:, 0], bounds[:, 1])
+    return rng.uniform(bounds[:, 0], bounds[:, 1])
 
 def is_collision_free(p1, p2, obstacles, step_size=0.5):
     """
@@ -34,14 +40,14 @@ def is_collision_free(p1, p2, obstacles, step_size=0.5):
     p1 = np.array(p1)
     p2 = np.array(p2)
     dist = np.linalg.norm(p2 - p1)
-    
+
     if dist < 1e-6:  # Points are essentially the same
         return True
-    
+
     steps = int(np.ceil(dist / step_size))
     if steps == 0:
         steps = 1
-    
+
     for i in range(steps + 1):
         t = i / steps
         p = p1 + t * (p2 - p1)
