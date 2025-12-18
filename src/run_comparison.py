@@ -48,21 +48,21 @@ def main():
     
     results = {}
     
-    # Run BIT*
-    path, success, cost, duration = run_planner(BITStar, "BIT*", start, goal, obstacles, bounds, eta=2.5, batch_size=400)
-    results["BIT*"] = (path, success, cost, duration)
+    # # Run BIT*
+    # path, success, cost, duration = run_planner(BITStar, "BIT*", start, goal, obstacles, bounds, eta=2.5, batch_size=400)
+    # results["BIT*"] = (path, success, cost, duration)
     
-    # Run RRT*
-    path, success, cost, duration = run_planner(RRTStar, "RRT*", start, goal, obstacles, bounds, step_size=0.8, max_iter=3000, search_radius=3.0)
-    results["RRT*"] = (path, success, cost, duration)
+    # # Run RRT*
+    # path, success, cost, duration = run_planner(RRTStar, "RRT*", start, goal, obstacles, bounds, step_size=0.8, max_iter=3000, search_radius=3.0)
+    # results["RRT*"] = (path, success, cost, duration)
 
     # Run Informed RRT*
     path, success, cost, duration = run_planner(InformedRRTStar, "Informed RRT*", start, goal, obstacles, bounds, step_size=0.8, max_iter=3000, search_radius=3.0)
     results["Informed RRT*"] = (path, success, cost, duration)
 
-    # Run Custom RRT*
-    path, success, cost, duration = run_planner(CustomRRTStar, "Custom RRT*", start, goal, obstacles, bounds, step_size=0.8, max_iter=3000, search_radius=3.0, clearance_weight=1.0)
-    results["Custom RRT*"] = (path, success, cost, duration)
+    # # Run Custom RRT*
+    # path, success, cost, duration = run_planner(CustomRRTStar, "Custom RRT*", start, goal, obstacles, bounds, step_size=0.8, max_iter=3000, search_radius=3.0, clearance_weight=1.0)
+    # results["Custom RRT*"] = (path, success, cost, duration)
 
     # Visualization
     fig = plt.figure(figsize=(10, 8))

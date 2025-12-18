@@ -5,15 +5,15 @@ from mpl_toolkits.mplot3d import Axes3D
 from common.utils import Sphere, Box
 from planners.bit_star import BITStar
 from planners.rrt_star import RRTStar
-from planners.informed_rrt_star import InformedRRTStar
+from planners.informed_rrt_star import InformedRRTStar, plot_ellipsoid_3d
 from planners.custom_rrt_star import CustomRRTStar
 
 def run_planner(planner_class, name, start, goal, obstacles, bounds, **kwargs):
     print(f"--- Running {name} ---")
     planner = planner_class(start, goal, obstacles, bounds, **kwargs)
-    
+
     path = planner.plan(max_time=15.0)
-    
+        
     cost = float('inf')
     success = False
     
@@ -26,7 +26,49 @@ def run_planner(planner_class, name, start, goal, obstacles, bounds, **kwargs):
         print(f"{name}: Success! Cost={cost:.2f}")
     else:
         print(f"{name}: Failed")
+
+
+    num_ellipsoids = len(planner.ellipsoid_coords)
+    if planner.ellipsoid_coords:
+        fig = plt.figure(figsize=(12, 10))
+        ax = fig.add_subplot(111, projection='3d')
         
+        ax.set_title('Informed RRT* Ellipsoid Shrinkage (Evolution of Search Space)')
+        
+        # Plot Start/Goal
+        ax.scatter(start[0], start[1], start[2], c='g', marker='o', s=150, label='Start')
+        ax.scatter(goal[0], goal[1], goal[2], c='r', marker='x', s=150, label='Goal')
+        ax.plot([start[0], goal[0]], [start[1], goal[1]], [start[2], goal[2]], 'k:', alpha=0.5)
+
+        # Plot the final path (if found)
+        if path is not None:
+             ax.plot(path[:, 0], path[:, 1], path[:, 2], 'g-', linewidth=3, label='Found Path')
+        
+        # Plot a subset of the recorded ellipsoids (e.g., first 5, middle 5, last 5)
+        indices_to_plot = sorted(list(set([0, num_ellipsoids-1] + [int(i * (num_ellipsoids-1)/5) for i in range(1, 5)])))
+        cmap = plt.cm.viridis
+        
+        for i, idx in enumerate(indices_to_plot):
+            if idx < 0 or idx >= num_ellipsoids: continue
+            params = planner.ellipsoid_coords[idx]
+            
+            plot_ellipsoid_3d(
+                params, 
+                ax=ax, 
+                color=cmap(i / len(indices_to_plot)), 
+                alpha=0.2 + 0.5 * (i / len(indices_to_plot))
+            )
+
+        # Plot the sampled nodes (optional)
+        node_states = np.array([n.state for n in planner.node_list])
+        ax.scatter(node_states[:, 0], node_states[:, 1], node_states[:, 2], c='gray', s=5, alpha=0.3, label='RRT* Nodes')
+
+        plt.legend()
+        plt.show()
+    elif path is not None:
+        print("Path found, but c_best was never improved from initial state.")
+    else:
+        print("No path found and no ellipsoid updates recorded.")
     return path, success, cost
 
 def create_view(ax, bounds, start, goal, obstacles, results, colors, elev, azim, title):

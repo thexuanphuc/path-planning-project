@@ -1,6 +1,5 @@
 import numpy as np
-import time
-from common.utils import get_dist, is_collision_free, sample_uniform
+from common.utils import is_collision_free, sample_uniform
 
 class Node:
     def __init__(self, state):
@@ -10,144 +9,171 @@ class Node:
         self.f_score = np.inf
         self.children = []
 
-    def __repr__(self):
-        return f"Node(state={self.state}, g={self.g_score}, f={self.f_score})"
-
 class BITStar:
-    def __init__(self, start, goal, obstacles, bounds, eta=1.1, batch_size=100):
+    def __init__(self, start, goal, obstacles, bounds, eta=1.1, batch_size=100, rng=None):
         self.start = np.array(start)
         self.goal = np.array(goal)
         self.obstacles = obstacles
         self.bounds = bounds
-        self.eta = eta # Inflation factor for radius
+        self.eta = eta
         self.batch_size = batch_size
+        self.rng = rng
 
         self.start_node = Node(self.start)
         self.goal_node = Node(self.goal)
-        
-        self.V = [] # Vertex set (tree)
-        self.X_samples = [] # Unconnected samples
-        self.QE = [] # Edge queue
-        self.QV = [] # Vertex queue
-        
-        self.r = np.inf # Current connection radius
-        self.g_goal = np.inf # Cost to goal
+
+        self.V = []
+        self.X_samples = []
+        self.QE = []
+        self.QV = []
+
+        self.r = np.inf
+        self.g_goal = np.inf
+
+        self.iterations = 0
+
+        self._initialized = False
 
     def get_heuristic(self, state):
-        return np.linalg.norm(state - self.goal)
+        return float(np.linalg.norm(state - self.goal))
 
-    def plan(self, max_time=5.0):
-        start_time = time.time()
-        
-        # Initialize
-        self.start_node.g_score = 0
+    def initialize(self):
+        self.start_node.g_score = 0.0
         self.start_node.f_score = self.get_heuristic(self.start)
-        self.V.append(self.start_node)
-        self.X_samples = [] # Initially empty, will be filled in batches
-        
-        # Main loop
-        while time.time() - start_time < max_time:
-            if not self.QE and not self.QV:
-                self.prune()
-                self.X_samples.extend(self.sample_batch(self.batch_size))
-                self.V.extend([node for node in self.QV]) # Re-add vertices if they were put back? No, QV is for expansion
-                
-                # Update radius
-                # Simple radius approach for RRT* k-nearest or r-disc. 
-                # For BIT*, radius decreases as samples increase.
-                # r = eta * 2 * (1 + 1/d)^(1/d) * (measure(X_free)/zeta_d)^(1/d) * (log(q)/q)^(1/d)
-                # Simplified: depends on number of samples q
-                q = len(self.V) + len(self.X_samples)
-                dim = len(self.start)
-                self.r = self.eta * 5.0 * (np.log(q) / q) ** (1/dim) # Tunable 5.0 factor
-                
-                # Make existing vertices candidates for expansion
-                self.QV = [v for v in self.V if v.f_score < self.g_goal]
-                
-            # Expand best vertex
-            while self.QV:
-                # Sort QV by g_score + heuristic estimate to sample? 
-                # BIT* usually expands consistently.
-                # Here we just iterate through all in QV to find potential edges
-                v_curr = self.QV.pop(0) # Simplification: Treat QV as list of nodes to expand
-                
-                # Find neighbors in X_samples within radius r
-                # In robust impl, use KDTree. Here brute force for simplicity since N is small-ish
-                for x_state in self.X_samples:
-                    dist = np.linalg.norm(v_curr.state - x_state)
-                    if dist <= self.r:
-                        # Improved heuristic check
-                        g_estimated = v_curr.g_score + dist + self.get_heuristic(x_state)
-                        if g_estimated < self.g_goal:
-                            self.QE.append((v_curr, x_state, dist)) # Edge candidate
-            
-            # Sort QE by total estimated cost: g(v) + dist + h(x)
-            self.QE.sort(key=lambda edge: edge[0].g_score + edge[2] + self.get_heuristic(edge[1]))
+        self.V = [self.start_node]
+        self.X_samples = []
+        self.QE = []
+        self.QV = []
+        self.r = np.inf
+        self.g_goal = np.inf
+        self.goal_node = Node(self.goal)
+        self._initialized = True
 
-            # Expand best edge
-            if self.QE:
-                v, x_state, dist = self.QE.pop(0) # Best edge
-                
-                # Check actual collision
-                if is_collision_free(v.state, x_state, self.obstacles):
-                    # check if x is already in V (rewiring?)
-                    # Simplified: Assume x is new sample for now.
-                    # In full BIT*, X_samples are states, not nodes yet.
-                    
-                    # Create new node
-                    new_node = Node(x_state)
-                    new_node.parent = v
-                    new_node.g_score = v.g_score + dist
-                    new_node.f_score = new_node.g_score + self.get_heuristic(x_state)
-                    
-                    # If x_state was in X_samples, remove it
-                    # (Note: manual list removal is slow, valid for demo)
-                    # self.X_samples.remove(x_state) # - this might be tricky with numpy arrays comparison
-                    # Better to handle index or just mark used.
-                    
-                    # Check if goal reached
-                    if np.linalg.norm(new_node.state - self.goal) <= 1.0: # Goal tolerance
-                        if new_node.g_score < self.g_goal:
-                            self.g_goal = new_node.g_score
-                            self.goal_node = new_node
-                            print(f"Goal reached! Cost: {self.g_goal:.4f}")
+    def step(self):
+        """One BIT* expansion step (one vertex expansion + one edge attempt at most)."""
+        if not self._initialized:
+            self.initialize()
 
-                    self.V.append(new_node)
-                    self.QV.append(new_node)
-                    
-                    # Remove from samples to avoid re-expanding same state same way
-                    # (Actually BIT* keeps it for rewiring, but simplified version: just added to tree)
-                    # For strict BIT*, we need to manage V and X_samples sets carefully.
-                    # Let's try to remove it from X_samples to prevent duplicates in V
-                    # In efficient impl, use set or KDTree.
-                    # Finding the array match:
-                    for i, s in enumerate(self.X_samples):
-                        if np.array_equal(s, x_state):
-                            self.X_samples.pop(i)
-                            break
+        self.iterations += 1
 
-        return self.reconstruct_path()
+        if not self.QE and not self.QV:
+            self.prune()
+            self.X_samples.extend(self.sample_batch(self.batch_size))
+
+            q = len(self.V) + len(self.X_samples)
+            dim = len(self.start)
+            if q > 1:
+                self.r = self.eta * 5.0 * (np.log(q) / q) ** (1 / dim)
+            else:
+                self.r = np.inf
+
+            self.QV = [v for v in self.V if v.f_score < self.g_goal]
+
+        # expand one vertex into candidate edges
+        if self.QV:
+            v_curr = self.QV.pop(0)
+            for x_state in list(self.X_samples):
+                dist = float(np.linalg.norm(v_curr.state - x_state))
+                if dist <= self.r:
+                    g_est = v_curr.g_score + dist + self.get_heuristic(x_state)
+                    if g_est < self.g_goal:
+                        self.QE.append((v_curr, x_state, dist))
+
+        if self.QE:
+            self.QE.sort(key=lambda e: e[0].g_score + e[2] + self.get_heuristic(e[1]))
+            v, x_state, dist = self.QE.pop(0)
+
+            if is_collision_free(v.state, x_state, self.obstacles):
+                new_node = Node(x_state)
+                new_node.parent = v
+                new_node.g_score = v.g_score + dist
+                new_node.f_score = new_node.g_score + self.get_heuristic(x_state)
+
+                # goal check
+                if np.linalg.norm(new_node.state - self.goal) <= 1.0:
+                    if new_node.g_score < self.g_goal:
+                        self.g_goal = new_node.g_score
+                        self.goal_node = new_node
+
+                self.V.append(new_node)
+                self.QV.append(new_node)
+
+                # remove sample
+                for i, s in enumerate(self.X_samples):
+                    if np.array_equal(s, x_state):
+                        self.X_samples.pop(i)
+                        break
 
     def sample_batch(self, k):
-        # Informed sampling could be here
         samples = []
-        for _ in range(k):
-             samples.append(sample_uniform(self.bounds))
+        if self.g_goal < np.inf:
+            c_min = float(np.linalg.norm(self.goal - self.start))
+            c_best = float(self.g_goal)
+            if c_best < c_min:
+                c_best = c_min
+
+            x_center = (self.start + self.goal) / 2.0
+            a1 = (self.goal - self.start) / c_min
+            C = self.rotation_matrix_from_vectors(np.array([1, 0, 0]), a1)
+            L = np.diag([c_best / 2.0,
+                         np.sqrt(c_best**2 - c_min**2) / 2.0,
+                         np.sqrt(c_best**2 - c_min**2) / 2.0])
+
+            for _ in range(k):
+                while True:
+                    if self.rng is None:
+                        x_ball = np.random.uniform(-1, 1, 3)
+                    else:
+                        x_ball = self.rng.uniform(-1, 1, 3)
+                    if np.linalg.norm(x_ball) <= 1:
+                        break
+
+                x_rand = (C @ L @ x_ball) + x_center
+                if np.all(x_rand >= self.bounds[:, 0]) and np.all(x_rand <= self.bounds[:, 1]):
+                    samples.append(x_rand)
+                    if len(samples) >= k:
+                        break
+        else:
+            for _ in range(k):
+                samples.append(sample_uniform(self.bounds, rng=self.rng))
         return samples
 
+    def rotation_matrix_from_vectors(self, vec1, vec2):
+        a = vec1 / np.linalg.norm(vec1)
+        b = vec2 / np.linalg.norm(vec2)
+        v = np.cross(a, b)
+        if np.any(v):
+            c = np.dot(a, b)
+            s = np.linalg.norm(v)
+            kmat = np.array([[0, -v[2], v[1]],
+                             [v[2], 0, -v[0]],
+                             [-v[1], v[0], 0]])
+            return np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
+        return np.eye(3)
+
     def prune(self):
-        # Remove nodes with f_score > g_goal
         self.V = [v for v in self.V if v.f_score < self.g_goal]
         self.X_samples = [x for x in self.X_samples if self.get_heuristic(x) < self.g_goal]
 
     def reconstruct_path(self):
         if self.g_goal == np.inf:
             return None
-        
         path = []
-        curr = self.goal_node
-        while curr:
-            path.append(curr.state)
-            curr = curr.parent
+        cur = self.goal_node
+        while cur:
+            path.append(cur.state)
+            cur = cur.parent
         return path[::-1]
 
+    def get_best_solution(self):
+        path = self.reconstruct_path()
+        if path is None:
+            return None, False, float("inf")
+        path = np.asarray(path)
+        length = float(np.sum(np.linalg.norm(path[1:] - path[:-1], axis=1))) if len(path) >= 2 else 0.0
+        # objective for BIT* is g_goal (path cost)
+        return path, True, float(self.g_goal if self.g_goal < np.inf else length)
+
+    @property
+    def nodes_in_tree(self):
+        return len(self.V)
