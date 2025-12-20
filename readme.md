@@ -45,9 +45,6 @@ This project implements and compares sampling-based path planning algorithms in 
 <!-- **Metrics Comparison**
 ![Metrics Comparison](media/img/time_or_iters_metrics_comparison.png) -->
 
-
-## Stopping Conditions
-
 Three evaluation modes are supported:
 1. **Fixed Iterations** - Run each planner for a set number of iterations
 2. **Time/Iterations** - Stop after time limit OR iteration count
